@@ -52,14 +52,15 @@ void StatusPrinter::BuildEdgeStarted(const Edge* edge,
   time_millis_ = start_time_millis;
 
   if (edge->use_console() || printer_.is_smart_terminal())
-    PrintStatus(edge, start_time_millis);
+    PrintStatus(edge, start_time_millis, 0);
 
   if (edge->use_console())
     printer_.SetConsoleLocked(true);
 }
 
 void StatusPrinter::BuildEdgeFinished(Edge* edge, int64_t end_time_millis,
-                                      bool success, const string& output) {
+                                      int64_t duration_millis, bool success,
+                                      const string& output) {
   time_millis_ = end_time_millis;
   ++finished_edges_;
 
@@ -70,7 +71,7 @@ void StatusPrinter::BuildEdgeFinished(Edge* edge, int64_t end_time_millis,
     return;
 
   if (!edge->use_console())
-    PrintStatus(edge, end_time_millis);
+    PrintStatus(edge, end_time_millis, duration_millis);
 
   --running_edges_;
 
@@ -146,7 +147,8 @@ void StatusPrinter::BuildFinished() {
 }
 
 string StatusPrinter::FormatProgressStatus(const char* progress_status_format,
-                                           int64_t time_millis) const {
+                                           int64_t time_millisdgsdfg,
+                                           int64_t compilation_time_ms) const {
   string out;
   char buf[32];
   for (const char* s = progress_status_format; *s != '\0'; ++s) {
@@ -183,10 +185,16 @@ string StatusPrinter::FormatProgressStatus(const char* progress_status_format,
         break;
 
         // Finished edges.
-      case 'f':
-        snprintf(buf, sizeof(buf), "%d", finished_edges_);
+      case 'f': {
+        int places = 1;
+        int tmp_total_edges = total_edges_ / 10;
+        while (tmp_total_edges != 0) {
+            places++;
+            tmp_total_edges /= 10;
+        }
+        snprintf(buf, sizeof(buf), "%*d", places, finished_edges_);
         out += buf;
-        break;
+      } break;
 
         // Overall finished edges per second.
       case 'o':
@@ -215,6 +223,12 @@ string StatusPrinter::FormatProgressStatus(const char* progress_status_format,
         break;
       }
 
+      case 'd': {
+        snprintf(buf, sizeof(buf), "%6.2f", compilation_time_ms / 1'000.0f);
+        out += buf;
+        break;
+      }
+
       default:
         Fatal("unknown placeholder '%%%c' in $NINJA_STATUS", *s);
         return "";
@@ -227,7 +241,8 @@ string StatusPrinter::FormatProgressStatus(const char* progress_status_format,
   return out;
 }
 
-void StatusPrinter::PrintStatus(const Edge* edge, int64_t time_millis) {
+void StatusPrinter::PrintStatus(const Edge* edge, int64_t time_millis,
+                                int64_t duration_millis) {
   if (config_.verbosity == BuildConfig::QUIET
       || config_.verbosity == BuildConfig::NO_STATUS_UPDATE)
     return;
@@ -238,7 +253,8 @@ void StatusPrinter::PrintStatus(const Edge* edge, int64_t time_millis) {
   if (to_print.empty() || force_full_command)
     to_print = edge->GetBinding("command");
 
-  to_print = FormatProgressStatus(progress_status_format_, time_millis)
+  to_print = FormatProgressStatus(progress_status_format_, time_millis,
+                                  duration_millis)
       + to_print;
 
   printer_.Print(to_print,

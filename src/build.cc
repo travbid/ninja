@@ -778,10 +778,11 @@ bool Builder::FinishCommand(CommandRunner::Result* result, string* err) {
   RunningEdgeMap::iterator it = running_edges_.find(edge);
   start_time_millis = it->second;
   end_time_millis = GetTimeMillis() - start_time_millis_;
+  const int64_t duration_millis = end_time_millis - start_time_millis;
   running_edges_.erase(it);
 
-  status_->BuildEdgeFinished(edge, end_time_millis, result->success(),
-                             result->output);
+  status_->BuildEdgeFinished(edge, end_time_millis, duration_millis,
+                             result->success(), result->output);
 
   // The rest of this function only applies to successful commands.
   if (!result->success()) {
